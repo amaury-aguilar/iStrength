@@ -63,6 +63,7 @@ temp/
 .Rhistory
 .RData
 .Rproj.user/
+.Rproj
 
 # =========================
 # IDEs
