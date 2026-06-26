@@ -28,7 +28,7 @@ For every domain it reports:
   - [The iStrength formula](#the-istrength-formula)
   - [Stripe and loop ratios](#stripe-and-loop-ratios)
 - [Output files](#output-files)
-- [Output columns (data dictionary)](#output-columns-data-dictionary)
+- [Metrics catalog](#metrics-catalog)
 - [Performance notes](#performance-notes)
 - [Citation](#citation)
 - [Author & license](#author--license)
@@ -124,6 +124,7 @@ general:
   window_anchors_in: 10000         # loop anchor window, inside the domain
   window_anchors_out: 10000        # loop anchor window, outside the domain
   keep_id: true                    # keep IDs from the regions file (else auto-generate)
+  # metrics: [iStrength, tad, loop_ratio_oe] # optional: families or exact names (default: all)
 
 experiments:
   WT:
@@ -155,8 +156,16 @@ experiments:
 | `window_anchors_in` | general | int | Loop anchor window reaching **into** the domain. |
 | `window_anchors_out` | general | int | Loop anchor window reaching **outside** the domain. |
 | `keep_id` | general/exp | bool | `true` keeps regions-file IDs; `false` auto-generates them. |
+| `metrics` | general/exp | list | Optional. Metric groups to write (matched as column prefixes). Omit to write **all** columns. |
 | `hic_file` | exp | file | `.hic` file for this experiment. |
 | `output_name` | exp | string | Used to name the output folder and files. |
+
+> **`metrics` selection.** Each entry is matched as a **column-name prefix**, so
+> you can paste a whole family (e.g. `iStrength`, `loop`) or exact column names
+> (e.g. `iStrength_start_oe`, `loop_ratio_oe`). See the
+> [Metrics catalog](#metrics-catalog) for every selectable token. The coordinate
+> columns `chr`, `start`, `end`, `id` are always kept, and this only affects the
+> `.bed` / `.bedpe` outputs (the `.iStrength` summary stays complete).
 
 ---
 
@@ -294,8 +303,11 @@ Stripe and loop strengths are reported both as raw means and as ratios over a
 loop-anchor bins (`tad.no_stripes.no_loop`):
 
 $$
-\text{up\_stripe\_ratio} = \frac{\text{up\_stripe}}{\text{background}}, \quad
-\text{loop\_ratio} = \frac{\text{loop}}{\text{background}}
+\text{up-stripe ratio} = \frac{\text{up-stripe}}{\text{background}}
+$$
+
+$$
+\text{loop ratio} = \frac{\text{loop}}{\text{background}}
 $$
 
 A ratio `> 1` means the feature is enriched relative to the bulk of the domain.
@@ -321,37 +333,100 @@ iStrength/<output_name>/<resolution>/
 
 ---
 
-## Output columns (data dictionary)
+## Metrics catalog
 
-**Domain coordinates**
+This is the complete list of selectable metrics. In `config.yaml` you can paste
+either a **family prefix** (e.g. `loop`, which selects every `loop_*` column) or
+**exact column names** (e.g. `loop_ratio_oe`). The coordinate columns `chr`,
+`start`, `end`, `id` are always written.
 
-`chr`, `start`, `end`, `id`, `length`, `outTAD_win`, `avg`
+**Normalization suffixes** (shared across families):
 
-**Boundary insulation (per start/end boundary)**
-
-| Group | Columns |
+| Suffix | Meaning |
 |---|---|
-| Observed | `upTAD_*_obs`, `downTAD_*_obs`, `interTAD_*_obs`, `iStrength_*_obs` |
-| Log | `interTAD_*_log`, `iStrength_*_log` |
-| Median | `interTAD_*_median`, `iStrength_*_median` |
-| OE | `upTAD_*_oe`, `downTAD_*_oe`, `interTAD_*_oe`, `iStrength_*_oe`, `iStrength_*_oe_median` |
+| `_counts` | raw counts (`NONE`) |
+| `_obs` | observed, KR-normalized |
+| `_oe` | observed / expected (KR) |
+| `_o_avg` | `obs` scaled by the chromosome-wide mean |
+| `_log` | `log10(obs + 1)` |
+| `_log_avg` | `log10(o_avg + 1)` |
+| `_median` | aggregated with the median instead of the mean |
+| `_start` / `_end` | measured at the start / end boundary |
 
-(`*` = `start` or `end`.)
+**Meta**
 
-**TAD interior**
+| Metric | Description |
+|---|---|
+| `length` | Domain length in bp. |
+| `outTAD_win` | Flank window used for the boundary regions (bp). |
+| `avg` | Chromosome-wide mean contact per bin pair. |
 
-`tad_counts`, `tad_obs`, `tad_o_avg`, `tad_log`, `tad_log_avg`, `tad_oe`
+**Boundary components** — families `upTAD`, `downTAD`, `interTAD`
 
-**Loop**
+| Metric | Description |
+|---|---|
+| `upTAD_start_obs`, `upTAD_end_obs` | Intra signal in the square *before* the start/end boundary (obs). |
+| `downTAD_start_obs`, `downTAD_end_obs` | Intra signal in the square *after* the start/end boundary (obs). |
+| `upTAD_start_oe`, `upTAD_end_oe`, `downTAD_start_oe`, `downTAD_end_oe` | Same intra squares, OE-normalized. |
+| `interTAD_start_obs`, `interTAD_end_obs` | Cross-boundary (inter) signal (obs). |
+| `interTAD_start_log`, `interTAD_end_log` | Inter signal (log). |
+| `interTAD_start_median`, `interTAD_end_median` | Inter signal (median). |
+| `interTAD_start_oe`, `interTAD_end_oe` | Inter signal (OE). |
+| `interTAD_start_oe_median`, `interTAD_end_oe_median` | Inter signal (OE, median). |
 
-`loop_counts`, `loop_obs`, `loop_o_avg`, `loop_log`, `loop_log_avg`, `loop_oe`,
-`loop_ratio_obs`, `loop_ratio_oe`
+**Boundary strength** — family `iStrength`
 
-**Stripes**
+| Metric | Description |
+|---|---|
+| `iStrength_start_obs`, `iStrength_end_obs` | Insulation strength `(intra - inter)/(intra + inter)` (obs). |
+| `iStrength_start_log`, `iStrength_end_log` | Boundary strength (log). |
+| `iStrength_start_median`, `iStrength_end_median` | Boundary strength (median). |
+| `iStrength_start_oe`, `iStrength_end_oe` | Boundary strength (OE). |
+| `iStrength_start_oe_median`, `iStrength_end_oe_median` | Boundary strength (OE, median). |
 
-`up_stripe_*` and `down_stripe_*` for `counts`, `obs`, `o_avg`, `log`,
-`log_avg`, `oe`, plus `up_stripe_ratio_*` / `down_stripe_ratio_*`
-(`counts`, `obs`, `oe`).
+**TAD interior** — family `tad`
+
+| Metric | Description |
+|---|---|
+| `tad_counts` | Mean raw counts inside the whole domain. |
+| `tad_obs` | Mean observed (KR). |
+| `tad_o_avg` | Mean `obs` scaled by chromosome mean. |
+| `tad_log` | Mean `log10(obs + 1)`. |
+| `tad_log_avg` | Mean `log10(o_avg + 1)`. |
+| `tad_oe` | Mean OE. |
+
+**Loop** — family `loop`
+
+| Metric | Description |
+|---|---|
+| `loop_counts` | Mean raw counts at the loop-anchor corner. |
+| `loop_obs` | Mean observed (KR). |
+| `loop_o_avg` | Mean `obs` scaled by chromosome mean. |
+| `loop_log` | Mean `log10(obs + 1)`. |
+| `loop_log_avg` | Mean `log10(o_avg + 1)`. |
+| `loop_oe` | Mean OE. |
+| `loop_ratio_obs` | `loop_obs` divided by the domain background. |
+| `loop_ratio_oe` | `loop_oe` divided by the domain background. |
+
+**Stripes** — families `up_stripe`, `down_stripe`
+
+| Metric | Description |
+|---|---|
+| `up_stripe_counts`, `down_stripe_counts` | Mean raw counts along the up/down stripe. |
+| `up_stripe_obs`, `down_stripe_obs` | Mean observed (KR). |
+| `up_stripe_o_avg`, `down_stripe_o_avg` | Mean `obs` scaled by chromosome mean. |
+| `up_stripe_log`, `down_stripe_log` | Mean `log10(obs + 1)`. |
+| `up_stripe_log_avg`, `down_stripe_log_avg` | Mean `log10(o_avg + 1)`. |
+| `up_stripe_oe`, `down_stripe_oe` | Mean OE. |
+| `up_stripe_ratio_counts`, `down_stripe_ratio_counts` | Stripe/background (counts). |
+| `up_stripe_ratio_obs`, `down_stripe_ratio_obs` | Stripe/background (obs). |
+| `up_stripe_ratio_oe`, `down_stripe_ratio_oe` | Stripe/background (OE). |
+
+**Example** — write only OE boundary strength, the loop OE ratio and the TAD OE signal:
+
+```yaml
+metrics: [iStrength_start_oe, iStrength_end_oe, loop_ratio_oe, tad_oe]
+```
 
 ---
 

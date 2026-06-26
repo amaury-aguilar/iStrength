@@ -322,6 +322,7 @@ id <- ifelse(general$keep_id, "id", "new")
     window1 <- get_param("window_anchors_in", exp, general)
     window2 <- get_param("window_anchors_out", exp, general)
     stripe_width <- get_param("stripe_width", exp, general)
+    metrics_wanted <- get_param("metrics", exp, general)
     
     stripe_width <- round(stripe_width / resol) * resol
     stripe_bins <- as.integer(stripe_width / resol)
@@ -465,8 +466,7 @@ if (pairfile=="bedpe"){
     (chrm <- as.character(chr.list[as.integer(j),chr]))
     # Si hay loops ... ---------------------------- #
     print(paste0("Checking loops file for chr",chrm))
-    peaks_df <- as.data.table(peaks_df)
-    peaks_chr_df <- copy(peaks_df[chr==chrm])
+    peaks_chr_df <- peaks_df[which(peaks_df$chr==chrm),]
     if(nrow(peaks_chr_df) > 0){
       
     bins.chr <- (ceiling(chr.list[as.integer(j),size]/resol)**2)/2
@@ -528,17 +528,6 @@ if (pairfile=="bedpe"){
     }
   } 
   
-  domains.bedpe <- data.table(domains.bed[,1],
-                              floor(domains.bed[,2]-(resol/2)),
-                              floor(domains.bed[,2]+(resol/2)),
-                              domains.bed[,1],
-                              floor(domains.bed[,3]-(resol/2)),
-                              floor(domains.bed[,3]+(resol/2)))
-  
-  colnames(domains.bedpe) <- c("chr1","start1","end1","chr2","start2","end2")
-  
-  domains.bedpe <- cbind(domains.bedpe,domains.bed[,-c(1:3)])
-  
   iS.start <- domains.bed[,.(chr = chr, 
                              start = start-(resol/2), end = start+(resol/2),
                              id=id, Boundary="Up", id_Boundary=paste0(id,"_Up"),
@@ -569,6 +558,23 @@ if (pairfile=="bedpe"){
   iS.domains <- rbind(iS.start,iS.end)
   iS.domains <- iS.domains[order(chr,start)]
   iS.domains <- iS.domains[!duplicated(iS.domains[,.(chr,start)])]
+  
+  #Select optional metrics ----------------------------------------------------
+  if(!is.null(metrics_wanted)){
+    patt <- paste0("^(", paste(unlist(metrics_wanted), collapse = "|"), ")")
+    keep <- unique(c("chr","start","end","id",
+                     grep(patt, names(domains.bed), value = TRUE)))
+    domains.bed <- domains.bed[, ..keep]
+  }
+  
+  domains.bedpe <- data.table(domains.bed[,1],
+                              floor(domains.bed[,2]-(resol/2)),
+                              floor(domains.bed[,2]+(resol/2)),
+                              domains.bed[,1],
+                              floor(domains.bed[,3]-(resol/2)),
+                              floor(domains.bed[,3]+(resol/2)))
+  colnames(domains.bedpe) <- c("chr1","start1","end1","chr2","start2","end2")
+  domains.bedpe <- cbind(domains.bedpe,domains.bed[,-c(1:3)])
   
   write.table(domains.bed,
               paste0(dir,"/iStrength/",nomen,"/",resol,"/",nomen,".iS_",window_label,".res_",resol/1000,"kb.bed"),

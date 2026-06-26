@@ -46,9 +46,4 @@ experiments:
 
     output_name: WT
 
-
-  KO:
-
-    hic_file: Ctcf_KO.allReps.896MvP.hic 
-
-    output_name: KO
+    metrics: [iStrength_start_oe, iStrength_end_oe, loop_ratio_oe, tad_oe]

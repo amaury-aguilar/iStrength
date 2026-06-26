@@ -1,4 +1,84 @@
-.Rproj.user
+# =========================
+# OS files
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+
+# virtual environments
+venv/
+env/
+.venv/
+
+# =========================
+# Jupyter notebooks
+# =========================
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# =========================
+# Logs
+# =========================
+*.log
+logs/
+
+# =========================
+# Data files (common in bioinformatics)
+# =========================
+*.bam
+*.bai
+*.fastq
+*.fq
+*.fastq.gz
+*.fq.gz
+*.bed
+*.bedpe
+*.vcf
+*.vcf.gz
+*.bigWig
+*.bw
+*.hic
+*.cool
+
+# large outputs
+results/
+output/
+tmp/
+temp/
+
+# =========================
+# R (if you mix R)
+# =========================
 .Rhistory
 .RData
-.Ruserdata
+.Rproj.user/
+
+# =========================
+# IDEs
+# =========================
+.vscode/
+.idea/
+*.swp
+
+# =========================
+# Git
+# =========================
+*.orig
+*.rej
+
+# =========================
+# Environment variables
+# =========================
+.env
+*.env
