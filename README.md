@@ -1,101 +1,196 @@
-# iStrength.R
+# ======================================================================
+# iStrength.R (v11) README
+# ======================================================================
 
-## Quick Description
+iStrength.R is an R script to compute chromatin interaction enrichment metrics from Hi-C data at genomic domains (TADs, loops, anchors).
 
-iStrength.R is an R script that computes chromatin interaction strength across genomic domains using Hi-C data. It quantifies how strongly regions such as TAD-like domains, loop anchors, and stripe structures interact internally compared to their surrounding genomic background, producing an interaction strength metric called iStrength that reflects domain insulation and boundary strength.
+It quantifies:
+- Boundary strength (iStrength)
+- Intra-domain interactions
+- Inter-domain interactions
+- Stripe patterns (upstream/downstream)
+- Loop intensities
+- Multiple normalization strategies (obs, OE, log, median)
 
-## How to Use
+# ======================================================================
+# 1. QUICK OVERVIEW (WHAT IT ANALYZES)
+# ======================================================================
 
-Run:
-Rscript iStrength.R config.yaml experiment_name
+Genome view:
+
+        Flanking upstream                 TAD / DOMAIN                  Flanking downstream
+<---- window ---->      |<------ domain ------>|      <---- window ---->
+
+Upstream stripe        Boundary START      INTRA-DOMAIN       Boundary END       Downstream stripe
+====****_____          |================|================|          _____****====
+
+                       INTER-DOMAIN (background / insulation)
+---------------------- ---------------- ---------------- ----------------------
+
+Loop view:
+
+[ Anchor A ] ======== loop interaction ======== [ Anchor B ]
+
+Legend:
+*  = stripe enrichment signal
+=  = intra-domain interaction
+-  = inter-domain/background signal
+Anchors = loop endpoints (inside or boundaries)
+
+# ======================================================================
+# 2. HOW TO RUN
+# ======================================================================
+
+Rscript iStrength.v11.R config.yaml experiment_name
 
 Example:
-Rscript iStrength.R config.yaml WT_sample
+Rscript iStrength.v11.R config.yaml exp1
 
-## Input
+Where:
+- config.yaml = configuration file
+- experiment_name = key inside config under "experiments"
 
-A YAML configuration file defines parameters and input paths.
+# ======================================================================
+# 3. EXAMPLE CONFIGURATION (config.yaml)
+# ======================================================================
 
 general:
   cores: 8
   genome: mm10
-  hic_directory: /path/to/hic/
-  regions_directory: /path/to/regions/
+  hic_directory: /path/hic/
+  regions_directory: /path/regions/
   resolution: 10000
   pairfile: bedpe
-  choose_window: fixed
   window: 200000
   window_ratio: 2
   dmin: 50000
-  window_anchors_in: 50000
-  window_anchors_out: 50000
   stripe_width: 50000
   skiping: 0
   regions_header: TRUE
   keep_id: TRUE
 
 experiments:
-  WT_sample:
+  exp1:
     hic_file: sample.hic
-    regions: regions.bedpe
-    output_name: WT_sample
+    regions: loops.bedpe
+    output_name: test_run
 
-## Output
+# ======================================================================
+# 4. INPUTS
+# ======================================================================
 
-Results are written to:
-iStrength/<experiment_name>/<resolution>/
+Hi-C file (.hic)
+- Extracted using straw:
+  - observed counts
+  - observed/expected (OE)
+  - raw counts
 
-Outputs include:
-- .bed (full per-region statistics)
-- .bedpe (domain representation in paired format)
-- .iStrength (boundary strength summary)
+Regions file:
+Defines anchors (BED or BEDPE)
 
-## What the script does
+BED:
+chr   start   end   id
 
-The script evaluates chromatin organization using Hi-C contact maps by measuring intra-domain, inter-domain, boundary, stripe, and loop interaction signals.
+BEDPE:
+chr1 start1 end1   chr2 start2 end2   id
 
-UPSTREAM        DOMAIN              DOWNSTREAM
-====*****====|===========|====*****====
-   signal         core        signal
+# ======================================================================
+# 5. PIPELINE (STEP BY STEP)
+# ======================================================================
 
-For each genomic region it computes:
-- intra-domain interaction signal
-- inter-domain interaction signal
-- boundary enrichment (start and end)
-- stripe enrichment
-- loop interaction enrichment
+1. LOAD DATA
+   - config.yaml
+   - genome sizes
+   - Hi-C matrices
+   - genomic regions
 
-## Boundary strength (iStrength)
+2. FILTER REGIONS
+   - remove small domains (< dmin)
+   - define analysis window
 
-START BOUNDARY:
-====*****====|
+3. EXTRACT Hi-C SIGNAL
+   - observed
+   - OE
+   - raw counts
 
-END BOUNDARY:
-|====*****====
+4. COMPUTE FEATURES
 
-iStrength = (intra - inter) / (intra + inter)
+   TAD interior:
+   =====================
 
-This measures how strongly a domain is insulated from its surrounding chromatin environment.
+   Inter-domain signal:
+   ---------------------
 
-## Stripes
+   Boundary strength:
+   iStrength = (intra - inter) / (intra + inter)
 
-====*****----------
-      \\\\\\\\\\\\
-       \\\\\\\\\\\\
+   Stripe signal:
+   ====****____ (upstream)
+   ____****==== (downstream)
 
-Directional interaction enrichment near domain boundaries.
+   Loop signal:
+   [A] ======= [B]
 
-## Loops
+5. BACKGROUND NORMALIZATION
+   - remove stripes
+   - remove loops
+   - compute baseline domain signal
 
-ANCHOR A ================= ANCHOR B
-          \\\\\\\\\\\\\\\\\
+6. AGGREGATE RESULTS
+   - per chromosome
+   - per domain
 
-Loop enrichment is computed using interaction windows around anchor pairs.
+7. EXPORT OUTPUTS
 
-## Workflow
+# ======================================================================
+# 6. OUTPUT FILES
+# ======================================================================
 
-CONFIG FILE → LOAD REGIONS → LOAD Hi-C MATRIX (strawr) → ITERATE CHROMOSOMES → ITERATE REGIONS → COMPUTE METRICS → MERGE RESULTS → WRITE OUTPUT FILES
+<iS>.bed
+- full domain metrics
 
-## Key concept
+<iS>.bedpe
+- paired anchor representation
 
-iStrength captures the balance between internal and external chromatin interactions, providing a quantitative measure of domain insulation and boundary strength in Hi-C data.
+<iS>_summary.bed
+- simplified boundary-focused metrics
+
+# ======================================================================
+# 7. KEY METRICS
+# ======================================================================
+
+Boundary strength:
+- iStrength_start_obs
+- iStrength_end_obs
+- iStrength_*_oe
+- iStrength_*_log
+
+Loop metrics:
+- loop_obs
+- loop_oe
+- loop_ratio
+
+Stripe metrics:
+- up_stripe
+- down_stripe
+- stripe_ratio
+
+TAD metrics:
+- tad_obs
+- tad_log
+- tad_oe
+
+# ======================================================================
+# 8. PARALLELIZATION
+# ======================================================================
+
+- One chromosome per core (mclapply)
+- Higher resolution = slower runtime
+- straw extraction is main bottleneck
+
+# ======================================================================
+# AUTHOR
+# ======================================================================
+
+Oscar Amaury Aguilar Lomas
+2025
