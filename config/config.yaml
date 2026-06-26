@@ -1,17 +1,54 @@
-# loops_TADs.3925MvP.iStrength.config
-nomen: TADs_3925MvP_Ctcf_WT TADs_3925MvP_Ctcf_KO "Nombres de cada archivo de salida para cada experimento (uno por cada .hic). Separados por espacios sencillos"
-cores: 4 . "Número de núcleos que ocupará el análisis por cada experimento (sep sencillos)"
-genome_reference: mm10 . "Genome reference:mm10,hg38"
-hic_directories: /Users/amaury/endothelial_Cells/juicer/ . "Directorio de matrices (.hic)"
-hic_file: Ctcf_WT.allReps.896MvP.hic Ctcf_KO.allReps.896MvP.hic "Archivo de matrices (.hic)"
-regiones_dir: /Users/amaury/lastHiC_analysis/loops_intersect/TADs_3925MvP_vs_Loops_3925MvP/bed/ . "TADs file"
-regiones: TADs_3925MvP.shared.Loops_3925MvP.wt_het_mut.3925MvP.TADs_Loops.bed TADs_3925MvP.shared.Loops_3925MvP.wt_het_mut.3925MvP.TADs_Loops.bed "TADs or loops file"
-resolucion: 5000 . "Resolucion del análisis"
-dmin: 15000 . "Longitud mínima del loop o del TAD"
-choose_window: ratio . "Choose between 'ratio' and 'fixed'"
-window: 50000 . "Genomic window iStrength"
-window_ratio: 0.5 . "Genomic window as a proportion of TAD length for iStrength"
-window_anchors_in: 10000 . "Genomic window in"
-window_anchors_out: 10000 . "Genomic window out"
-stripe_width: 10000 . "Width of the stripe domain"
-id: id . "<id> conserva el indice en la columna 4 de los archivos de loops"
+# config.yaml
+
+general:
+
+  genome: mm10
+
+  hic_directory: /Users/amaury/endothelial_Cells/juicer/
+
+  regions_directory: /Users/amaury/lastHiC_analysis/loops_intersect/TADs_3925MvP_vs_Loops_3925MvP/bed/
+
+  regions: loop_domains_for_test.bed 
+
+  skiping: 0
+
+  regions_header: FALSE
+
+  pairfile: bed #bed or bedpe
+
+  cores: 4
+
+  resolution: 5000
+
+  choose_window: ratio
+
+  window_ratio: 0.5
+
+  stripe_width: 10000
+
+  dmin: 15000
+
+  window: 50000
+
+  window_anchors_in: 10000
+
+  window_anchors_out: 10000
+
+  keep_id: true
+
+#------------------------------
+
+experiments:
+
+  WT:
+
+    hic_file: Ctcf_WT.allReps.896MvP.hic 
+
+    output_name: WT
+
+
+  KO:
+
+    hic_file: Ctcf_KO.allReps.896MvP.hic 
+
+    output_name: KO

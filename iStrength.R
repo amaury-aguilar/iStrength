@@ -4,43 +4,39 @@
 # Author: Oscar Amaury Aguilar Lomas
 # Date: May 5, 2025
 # Uso:
-# Rscript iStrength.v9.beta.R archivo_de_configuracion nombre_general
+# Rscript iStrength.R config/config.yaml
 # Corregido problema con el ID de los archivos
 #Bibliotecas necesarias -----------
-#install.packages("data.table")
 library(data.table)
 library(parallel)
 library(matrixStats)
+library(yaml)
+
 #Si no está instalado, este es el comando para instalar straw :
 #remotes::install_github("aidenlab/straw/R")
 #- Variables ----------------------
 variables <- commandArgs(trailingOnly = TRUE)
-configuracion <- read.table(as.character(variables[1]),header = T,row.names = 1)
-#configuracion <- read.table("config/loops_TADs.3925MvP.iStrength.config",
- #                           header = T,row.names = 1)
-#configuracion <- read.table("config/pyHICCUPS.3kb_4kb_5kb_6kb_8kb_10kb.iStrength.config",header = T,row.names = 1)
-colnames(configuracion[,1:ncol(configuracion)-1])
-# i <- "TADs_3925MvP_Ctcf_WT_test"
-for (i in colnames(configuracion[,1:ncol(configuracion)-1])){
-  nomen <- i
-  cores <- as.character(configuracion["cores:", 1])
-  chr.list.var <- as.character(configuracion["genome_reference:", 1])
-  (hic.dir <- as.character(configuracion["hic_directories:", 1]))
-  (hic.file <- as.character(configuracion["hic_file:", i]))
-  (regiones_dir <- as.character(configuracion["regiones_dir:", 1]))
-  (peak.file.var <- as.character(configuracion["regiones:", i]))
-  (resol <- as.numeric(as.character(configuracion["resolucion:", 1])))
-  (choose_window <- as.character(configuracion["choose_window:", 1]))
-  (window <- as.numeric(as.character(configuracion["window:", 1])))
-  (window_ratio <- as.numeric(as.character(configuracion["window_ratio:", 1])))
-  (dmin <- as.numeric(as.character(configuracion["dmin:", 1])))
-  (window1 <- as.numeric(as.character(configuracion["window_anchors_in:", 1])))
-  (window2 <- as.numeric(as.character(configuracion["window_anchors_out:", 1])))
-  (stripe_w <- as.numeric(as.character(configuracion["stripe_width:", 1])))
-  (id <- as.character(configuracion["id:", 1]))
-  # Windows - Load-chr-table----------------------------------------
-  (window <- floor(window/resol)*resol)
-  (stripe_width <- floor(stripe_w/resol))
+config <- yaml.load_file(variables[1])
+
+general <- config$general
+cores <- general$cores
+chr.list.var <- general$genome
+hic.dir <- general$hic_directory
+regiones_dir <- general$regions_directory
+resol <- general$resolution
+pairfile <- general$pairfile
+choose_window <- general$choose_window
+window <- general$window
+window_ratio <- general$window_ratio
+dmin <- general$dmin
+window1 <- general$window_anchors_in
+window2 <- general$window_anchors_out
+stripe_width <- general$stripe_width
+skiping <- general$skiping
+regions_header <- general$regions_header  
+
+id <- ifelse(general$keep_id, "id", "new")
+
   #chr.list <- read.table(paste0("genomes/",chr.list.var))
   # Load-chr-table----------------------------------------
   mm10 <- data.table(chr = c("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "X", "Y"),
@@ -49,92 +45,27 @@ for (i in colnames(configuracion[,1:ncol(configuracion)-1])){
   hg38 <- data.table(chr=c("1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17","18","19","20","21","22","X","Y"),
                      size=c(248956422,242193529,198295559,190214555,181538259,170805979,159345973,145138636,138394717,133797422,135086622,133275309,114364328,107043718,101991189,90338345,83257441,80373285,58617616,64444167,46709983,50818468,156040895,57227415))
   
-  genome.list <- list(mm10=mm10,hg38=hg38,mm10_test=mm10_test)
-  
-  chr.list <- genome.list[[chr.list.var]]
+  genome_list <- list(mm10=mm10,hg38=hg38,mm10_test=mm10_test)
   
   #Take time and Set dir -------------------------------------------------------
   start.time <- Sys.time()
   options(scipen=999)
   dir <- getwd()
   setwd(dir)
-  #Take time and Set dir -------------------------------------------------------
-  dir.create(file.path(dir,"iStrength"))
-  dir.create(file.path(dir,"iStrength", nomen))
-  dir.create(file.path(dir,"iStrength", nomen, resol))
-  # Meta #------------------------------------------------------------
-  domains.bed <- data.table(chr=character(),
-                            start=numeric(),end=numeric(),
-                            id=numeric(),
-                            length=numeric(),
-                            outTAD_win=numeric(),
-                            upTAD_start_obs=numeric(),
-                            downTAD_start_obs=numeric(),
-                            upTAD_end_obs=numeric(),
-                            downTAD_end_obs=numeric(),
-                            interTAD_start_obs=numeric(),
-                            iStrength_start_obs=numeric(),
-                            interTAD_end_obs=numeric(),
-                            iStrength_end_obs=numeric(),
-                            interTAD_start_log=numeric(),
-                            iStrength_start_log=numeric(),
-                            interTAD_end_log=numeric(),
-                            iStrength_end_log=numeric(),
-                            interTAD_start_median=numeric(),
-                            iStrength_start_median=numeric(),
-                            interTAD_end_median=numeric(),
-                            iStrength_end_median=numeric(),
-                            upTAD_start_oe=numeric(),
-                            downTAD_start_oe=numeric(),
-                            upTAD_end_oe=numeric(),
-                            downTAD_end_oe=numeric(),
-                            interTAD_start_oe=numeric(),
-                            iStrength_start_oe=numeric(),
-                            interTAD_end_oe=numeric(),
-                            iStrength_end_oe=numeric(),
-                            interTAD_start_oe_median=numeric(),
-                            iStrength_start_oe_median=numeric(),
-                            interTAD_end_oe_median=numeric(),
-                            iStrength_end_oe_median=numeric(),
-                            tad_counts=numeric(),
-                            tad_obs=numeric(),
-                            tad_o_avg=numeric(),
-                            tad_log=numeric(),
-                            tad_log_avg=numeric(),
-                            tad_oe=numeric(),
-                            loop_counts=numeric(),
-                            loop_obs=numeric(),
-                            loop_o_avg=numeric(),
-                            loop_log=numeric(),
-                            loop_log_avg=numeric(),
-                            loop_oe=numeric(),
-                            loop_ratio_obs=numeric(),
-                            loop_ratio_oe=numeric(),
-                            up_stripe_counts=numeric(),
-                            up_stripe_obs=numeric(),
-                            up_stripe_o_avg=numeric(),
-                            up_stripe_log=numeric(),
-                            up_stripe_log_avg=numeric(),
-                            up_stripe_oe=numeric(),
-                            down_stripe_counts=numeric(),
-                            down_stripe_obs=numeric(),
-                            down_stripe_o_avg=numeric(),
-                            down_stripe_log=numeric(),
-                            down_stripe_log_avg=numeric(),
-                            down_stripe_oe=numeric(),
-                            up_stripe_ratio_counts=numeric(),
-                            up_stripe_ratio_obs=numeric(),
-                            up_stripe_ratio_oe=numeric(),
-                            down_stripe_ratio_counts=numeric(),
-                            down_stripe_ratio_obs=numeric(),
-                            down_stripe_ratio_oe=numeric(),
-                            avg=numeric())
+
   # Functions ------------------------------------------------------------------
+
+  `%||%` <- function(a,b){ if(is.null(a)) b else a }
+
+  get_param <- function(name, exp, general) {
+    exp[[name]] %||% general[[name]]
+    }
+
   matistics <- function(i){
     #Start boundary ------------------------------------------------------------
-    outTAD_win <-tads.chr[i,6]
-    start_domain <- tads.chr[i,2]
-    end_domain <- tads.chr[i,3]
+    outTAD_win <-peaks_chr_df[i,6]
+    start_domain <- peaks_chr_df[i,2]
+    end_domain <- peaks_chr_df[i,3]
     
     upTAD.start.range <- seq.int(start_domain-outTAD_win,start_domain,resol)
     upTAD.start.intervalo <- 
@@ -238,26 +169,32 @@ for (i in colnames(configuracion[,1:ncol(configuracion)-1])){
     
     #Stripes-------------------------------------------------------------------------
     up_stripes.range <- 
-      seq.int(start_domain,end_domain-(stripe_width*resol),resol)
-    up_stripes.intervalo <- data.table(x = rep(up_stripes.range[1:stripe_width],
+      seq.int(start_domain,end_domain-(stripe_width),resol)
+    up_stripes.intervalo <- data.table(x = rep(up_stripes.range[1:stripe_bins],
                                                each=length(up_stripes.range)),
-                                       y = rep(up_stripes.range,stripe_width))[x < y]
+                                       y = rep(up_stripes.range,stripe_bins))[x < y]
     setkey(up_stripes.intervalo, x, y)
     up_stripes.region <- mtz[up_stripes.intervalo, on = .(x, y)]
     up_stripes.region[is.na(up_stripes.region)] <- 0
     up_stripe <- colMeans(up_stripes.region[,-c("x","y")])
     
-    down_stripes.range <- seq.int(start_domain+(stripe_width*resol),end_domain,resol)
-    down_stripes.intervalo <- data.table(x = rep(down_stripes.range,stripe_width),
-                                         y = rep(tail(down_stripes.range,stripe_width),
+    down_stripes.range <- seq.int(start_domain+(stripe_width),end_domain,resol)
+    down_stripes.intervalo <- data.table(x = rep(down_stripes.range,stripe_bins),
+                                         y = rep(tail(down_stripes.range,stripe_bins),
                                                  each=length(down_stripes.range)))[x < y]
     setkey(down_stripes.intervalo, x, y)
     down_stripes.region <- mtz[down_stripes.intervalo, on = .(x, y)]
     down_stripes.region[is.na(down_stripes.region)] <- 0
     down_stripe <- colMeans(down_stripes.region[,-c("x","y")])
     # both stripes _   _   _   _   _   _   _   _   _   _
-    anchor_up_stripes.range <- seq.int(start_domain,start_domain+(stripe_width*resol),resol)
-    anchor_down_stripes.range <- seq.int(end_domain-(stripe_width*resol),end_domain,resol)
+    anchor_up_stripes.range <-
+    seq.int(start_domain,
+            start_domain + (stripe_bins - 1) * resol,
+            resol)
+    anchor_down_stripes.range <-
+    seq.int(end_domain - (stripe_bins - 1) * resol,
+            end_domain,
+            resol)
     anchor_stripes.intervalo <- data.table(x = rep(anchor_up_stripes.range,length(anchor_up_stripes.range)),
                                            y = rep(anchor_down_stripes.range,
                                                    each=length(anchor_down_stripes.range)))[x < y]
@@ -265,8 +202,9 @@ for (i in colnames(configuracion[,1:ncol(configuracion)-1])){
     anchor_stripes.region[is.na(anchor_stripes.region)] <- 0
     stripes.region <- rbind(up_stripes.region,down_stripes.region)
     #TAD_NoStripes_NoLoop & Stripes Ratio ---------------------------
-    tad.no_stripes.region <- tad.region[!stripes.region, on = .(x, y)]
-    tad.no_stripes.no_loop.region <- tad.no_stripes.region[!anchor_stripes.region, on = .(x, y)]
+    tad.no_stripes.region <- fsetdiff(tad.region, stripes.region, all = FALSE)
+    tad.no_stripes.no_loop.region <- fsetdiff(tad.no_stripes.region, anchor_stripes.region, all = FALSE)
+
     tad.no_stripes.no_loop.region[is.na(tad.no_stripes.no_loop.region)] <- 0
     tad.no_stripes.no_loop <- colMeans(tad.no_stripes.no_loop.region[,-c("x","y")])
     
@@ -287,11 +225,11 @@ for (i in colnames(configuracion[,1:ncol(configuracion)-1])){
     loop.ratio <- loop/tad.no_stripes.no_loop
     
     #Data Frame ------------------------------------------------------------------
-    domains.df <- data.table(chr=tads.chr[i,1],
+    domains.df <- data.table(chr=peaks_chr_df[i,1],
                              start=start_domain,end=end_domain,
-                             id=tads.chr[i,4],
-                             length=tads.chr[i,5],
-                             outTAD_win=tads.chr[i,6],
+                             id=peaks_chr_df[i,4],
+                             length=peaks_chr_df[i,5],
+                             outTAD_win=peaks_chr_df[i,6],
                              upTAD_start_obs=upTAD.start["obs"],
                              downTAD_start_obs=downTAD.start["obs"],
                              upTAD_end_obs=upTAD.end["obs"],
@@ -354,33 +292,197 @@ for (i in colnames(configuracion[,1:ncol(configuracion)-1])){
                              down_stripe_ratio_oe=down_stripe.ratio["oe"],
                              avg=avg
     )
-    print(domains.df)
+    return(domains.df)
   }
+
+  for(exp_name in names(config$experiments)){
+
+    exp <- config$experiments[[exp_name]]
+    nomen <- exp$output_name
+
+    stopifnot(!is.null(exp$hic_file))
+    stopifnot(!is.null(get_param("regions", exp, general)))
+    stopifnot(!is.null(exp$output_name))
+
+    hic.dir <- get_param("hic_directory", exp, general)
+    hic.file <- get_param("hic_file", exp, general)
+    pairfile <- get_param("pairfile", exp, general)
+    regiones_dir <- get_param("regions_directory", exp, general)
+    peak.file.var <- get_param("regions", exp, general)
+    keep_id_boolean <- get_param("keep_id", exp, general)
+    skiping <- get_param("skiping", exp, general)
+    regions_header <- get_param("regions_header", exp, general)
+
+    chr.list.var <- get_param("genome", exp, general)
+    resol <- get_param("resolution", exp, general)
+    choose_window <- get_param("choose_window", exp, general)
+    window <- get_param("window", exp, general)
+    window_ratio <- get_param("window_ratio", exp, general)
+    dmin <- get_param("dmin", exp, general)
+    window1 <- get_param("window_anchors_in", exp, general)
+    window2 <- get_param("window_anchors_out", exp, general)
+    stripe_width <- get_param("stripe_width", exp, general)
+    
+    stripe_width <- round(stripe_width / resol) * resol
+    stripe_bins <- as.integer(stripe_width / resol)
+    window1 <- round(window1 / resol) * resol
+    window2 <- round(window2 / resol) * resol
+    window  <- round(window  / resol) * resol
+
+
+    chr.list <- genome_list[[chr.list.var]]
+    id <- if (keep_id_boolean) "id" else "new"
+
+    # Meta #------------------------------------------------------------
+  domains.bed <- data.table(chr=character(),
+                            start=numeric(),end=numeric(),
+                            id=character(),
+                            length=numeric(),
+                            outTAD_win=numeric(),
+                            upTAD_start_obs=numeric(),
+                            downTAD_start_obs=numeric(),
+                            upTAD_end_obs=numeric(),
+                            downTAD_end_obs=numeric(),
+                            interTAD_start_obs=numeric(),
+                            iStrength_start_obs=numeric(),
+                            interTAD_end_obs=numeric(),
+                            iStrength_end_obs=numeric(),
+                            interTAD_start_log=numeric(),
+                            iStrength_start_log=numeric(),
+                            interTAD_end_log=numeric(),
+                            iStrength_end_log=numeric(),
+                            interTAD_start_median=numeric(),
+                            iStrength_start_median=numeric(),
+                            interTAD_end_median=numeric(),
+                            iStrength_end_median=numeric(),
+                            upTAD_start_oe=numeric(),
+                            downTAD_start_oe=numeric(),
+                            upTAD_end_oe=numeric(),
+                            downTAD_end_oe=numeric(),
+                            interTAD_start_oe=numeric(),
+                            iStrength_start_oe=numeric(),
+                            interTAD_end_oe=numeric(),
+                            iStrength_end_oe=numeric(),
+                            interTAD_start_oe_median=numeric(),
+                            iStrength_start_oe_median=numeric(),
+                            interTAD_end_oe_median=numeric(),
+                            iStrength_end_oe_median=numeric(),
+                            tad_counts=numeric(),
+                            tad_obs=numeric(),
+                            tad_o_avg=numeric(),
+                            tad_log=numeric(),
+                            tad_log_avg=numeric(),
+                            tad_oe=numeric(),
+                            loop_counts=numeric(),
+                            loop_obs=numeric(),
+                            loop_o_avg=numeric(),
+                            loop_log=numeric(),
+                            loop_log_avg=numeric(),
+                            loop_oe=numeric(),
+                            loop_ratio_obs=numeric(),
+                            loop_ratio_oe=numeric(),
+                            up_stripe_counts=numeric(),
+                            up_stripe_obs=numeric(),
+                            up_stripe_o_avg=numeric(),
+                            up_stripe_log=numeric(),
+                            up_stripe_log_avg=numeric(),
+                            up_stripe_oe=numeric(),
+                            down_stripe_counts=numeric(),
+                            down_stripe_obs=numeric(),
+                            down_stripe_o_avg=numeric(),
+                            down_stripe_log=numeric(),
+                            down_stripe_log_avg=numeric(),
+                            down_stripe_oe=numeric(),
+                            up_stripe_ratio_counts=numeric(),
+                            up_stripe_ratio_obs=numeric(),
+                            up_stripe_ratio_oe=numeric(),
+                            down_stripe_ratio_counts=numeric(),
+                            down_stripe_ratio_obs=numeric(),
+                            down_stripe_ratio_oe=numeric(),
+                            avg=numeric())
+
+
+    #Take time and Set dir -------------------------------------------------------
+    dir.create(file.path(dir, "iStrength"),
+           recursive = TRUE,
+           showWarnings = FALSE)
+    dir.create(file.path(dir, "iStrength", nomen),
+              recursive = TRUE,
+              showWarnings = FALSE)
+    dir.create(file.path(dir, "iStrength", nomen, resol),
+              recursive = TRUE,
+              showWarnings = FALSE)
+    
+    #Load regions -------------------------------------------------------
+
+peaks <- fread(file.path(regiones_dir, peak.file.var),
+      skip = skiping,
+      header = regions_header)
+
+if (pairfile=="bedpe"){
+  peaks$V1 <- gsub("chr","",peaks$V1)
+  peaks$V4 <- gsub("chr","",peaks$V4)
+    # Prepare TADs data frame -------------------------------------------------------
+  if(id == "id"){
+    peaks_df <- data.frame(chr=peaks$V1,
+                            start=floor(((peaks$V2+peaks$V3)/2)/as.numeric(resol))*resol,
+                            end=floor(((peaks$V5+peaks$V6)/2)/as.numeric(resol))*resol,
+                            id=peaks$V7)
+  }else{
+    peaks_df <- data.frame(chr=peaks$V1,
+                            start=floor(((peaks$V2+peaks$V3)/2)/as.numeric(resol))*resol,
+                            end=floor(((peaks$V5+peaks$V6)/2)/as.numeric(resol))*resol)
+
+  peaks_df$id <- paste0(nomen,"_chr",peaks_df$chr,"_",seq(1,length(peaks_df$chr)))
+  }
+  peaks_df$length <- peaks_df$end-peaks_df$start
+
+} else if(pairfile=="bed"){
+  peaks$V1 <- gsub("chr","",peaks$V1)
+    # Prepare TADs data frame -------------------------------------------------------
+  if(id == "id"){
+    peaks_df <- data.frame(chr=peaks$V1,
+                            start=floor((peaks$V2)/as.numeric(resol))*resol,
+                            end=floor((peaks$V3)/as.numeric(resol))*resol,
+                            id=peaks$V4,
+                            length=peaks$V3-peaks$V2)
+  }else{
+    peaks_df <- data.frame(chr=peaks$V1,
+                            start=floor((peaks$V2)/as.numeric(resol))*resol,
+                            end=floor((peaks$V3)/as.numeric(resol))*resol)
+
+    peaks_df$id <- paste0(nomen,"_chr",peaks_df$chr,"_",seq(1,length(peaks_df$chr)))
+    peaks_df$length <- peaks_df$end-peaks_df$start                        
+  }
+
+} else {
+  stop("pairfile must be 'bed' or 'bedpe'")
+}  
+
   # Chr-Loop---------------------------------------------------------------
   # j <- "18"
   for (j in row.names(chr.list)) {
-    (chr <- as.character(chr.list[as.integer(j),chr]))
+    (chrm <- as.character(chr.list[as.integer(j),chr]))
     # Si hay loops ... ---------------------------- #
-    print(paste0("Checking loops file for chr",chr))
-    peaks <- read.table(paste0(regiones_dir,peak.file.var))
-    peaks$V1 <- gsub("chr","",peaks$V1)
-    peaks.chr.pre <- peaks[which(peaks$V1==chr),]
-    if(length(peaks.chr.pre$V1)>0){
+    print(paste0("Checking loops file for chr",chrm))
+    peaks_df <- as.data.table(peaks_df)
+    peaks_chr_df <- copy(peaks_df[chr==chrm])
+    if(nrow(peaks_chr_df) > 0){
       
     bins.chr <- (ceiling(chr.list[as.integer(j),size]/resol)**2)/2
     #__Calculando____________________________
-    print(paste0("Calculando fuerza de interaccion en anclas de loops para el chr",chr))
+    print(paste0("Calculando fuerza de interaccion en anclas de loops para el chr",chrm))
     #Cargando matrices ---------------------------- #
-    print(paste0("Cargando matrices .hic de chr",chr))
-    mtz <- strawr::straw("KR", paste0(hic.dir,hic.file), chr, chr, "BP", resol,matrix="observed")
+    print(paste0("Cargando matrices .hic de chr",chrm))
+    mtz <- strawr::straw("KR", paste0(hic.dir,hic.file), chrm, chrm, "BP", resol,matrix="observed")
     colnames(mtz) <- c("x","y","obs")
     mtz$log <- log10(mtz$obs+1)
     avg <- (sum(mtz$obs,na.rm=T))/bins.chr
     mtz$o_avg <- mtz$obs/avg
     mtz$log_avg <- log10(mtz$o_avg+1)
-    mtz.oe <- strawr::straw("KR", paste0(hic.dir,hic.file), chr, chr, "BP", resol,matrix="oe")
+    mtz.oe <- strawr::straw("KR", paste0(hic.dir,hic.file), chrm, chrm, "BP", resol,matrix="oe")
     colnames(mtz.oe) <- c("x","y","oe")
-    mtz.raw <- strawr::straw("NONE", paste0(hic.dir,hic.file), chr, chr, "BP", resol,matrix="observed")
+    mtz.raw <- strawr::straw("NONE", paste0(hic.dir,hic.file), chrm, chrm, "BP", resol,matrix="observed")
     colnames(mtz.raw) <- c("x","y","counts")
     
     # Set_Keys
@@ -393,39 +495,27 @@ for (i in colnames(configuracion[,1:ncol(configuracion)-1])){
     mtz <- mtz.oe[mtz, on = .(x, y)]
     mtz <- mtz.raw[mtz, on = .(x, y)]
     
-      # Preparando loops --------------
-      if(id == "id"){
-        tads.chr <- data.frame(chr=peaks.chr.pre$V1,
-                               start=floor((peaks.chr.pre$V2)/as.numeric(resol))*resol,
-                               end=floor((peaks.chr.pre$V3)/as.numeric(resol))*resol,
-                               id=peaks.chr.pre$V4,
-                               length=peaks.chr.pre$V3-peaks.chr.pre$V2)
-      }else{
-        tads.chr <- data.frame(chr=peaks.chr.pre$V1,
-                               start=floor((peaks.chr.pre$V2)/as.numeric(resol))*resol,
-                               end=floor((peaks.chr.pre$V3)/as.numeric(resol))*resol,
-                               id=paste0(nomen,"_chr",chr,"_",seq(1,length(peaks.chr.pre$V1))),
-                               length=peaks.chr.pre$V3-peaks.chr.pre$V2)
-      }
-      tads.chr <- tads.chr[tads.chr$length >= dmin,]
+      peaks_chr_df <- peaks_chr_df[peaks_chr_df$length >= dmin,]
       
       if(choose_window=="ratio"){
-        tads.chr$outTAD_win <- tads.chr$length*window_ratio
+        peaks_chr_df$outTAD_win <-
+    floor(peaks_chr_df$length * window_ratio / resol) * resol
+
         window_label <- paste0(window_ratio,"_TADLength")
       }else if(choose_window=="fixed"){
-        tads.chr$outTAD_win <- window
+        peaks_chr_df$outTAD_win <- window
         window_label <- paste0(window/1000,"_kb")
         }
       
       conteos <- function(){
-        print(paste0("Calculando fuerza de interacciones en dominio de ",chr))
+        print(paste0("Calculando fuerza de interacciones en dominio de ",chrm))
         tad_parallel.start_time <- Sys.time()
-        tads.statistics <- mclapply(1:length(tads.chr$id), matistics, mc.cores = cores)
+        tads.statistics <- mclapply(1:length(peaks_chr_df$id), matistics, mc.cores = cores)
         tads.statistics.dt <- rbindlist(lapply(tads.statistics, function(x) as.list(x)), use.names = FALSE)
         tad_parallel.end_time <- Sys.time()
-        print(paste0("Parametros recobrados del chr",chr," en:"))
+        print(paste0("Parametros recobrados del chr",chrm," en:"))
         (tad_parallel.time_taken <- round(tad_parallel.end_time - tad_parallel.start_time,4))
-        print(paste0("Fuerza de interaccion en anclas de tads para chr",chr," calculadas"))
+        print(paste0("Fuerza de interaccion en anclas de tads para chr",chrm," calculadas"))
         return(list(mtz.chr=tads.statistics.dt))
       }
       
@@ -434,7 +524,7 @@ for (i in colnames(configuracion[,1:ncol(configuracion)-1])){
       domains.bed <- rbind(domains.bed,list.chr$mtz.chr)
       
     }else{
-      print(paste0("No hay regiones en el chr",chr," que recuperar"))
+      print(paste0("No hay regiones en el chr",chrm," que recuperar"))
     }
   } 
   
